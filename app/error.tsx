@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { Sparkles, RefreshCw, Home } from 'lucide-react';
 
 export default function Error({
   error,
@@ -12,38 +12,37 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log client error to console
-    console.error('App error caught by error boundary:', error);
+    console.error('Unhandled app error:', error);
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-rose-50/40 flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-md w-full bg-white rounded-2xl border border-rose-200 shadow-lg shadow-rose-900/5 p-8 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-red-600 via-rose-500 to-rose-600" />
-        
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-700 shadow-inner">
-          <AlertTriangle className="w-8 h-8" />
+    <div className="min-h-screen bg-[#fff5f5] dark:bg-[#0f0709] text-slate-800 dark:text-rose-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white dark:bg-[#1a0c10] border border-rose-200 dark:border-rose-900/50 rounded-2xl p-6 sm:p-8 shadow-xl text-center space-y-6">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-100 dark:bg-[#250e14] border border-rose-200 dark:border-rose-900/60 flex items-center justify-center text-red-600 dark:text-[#FF6B6B]">
+          <Sparkles className="w-7 h-7" />
         </div>
-
-        <h2 className="text-2xl font-bold text-neutral-900 mb-2">Something went wrong</h2>
-        <p className="text-sm text-neutral-600 mb-6">
-          An unexpected issue occurred while rendering the examination paper. You can try reloading the section.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <div className="space-y-2">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
+            Something went wrong
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-rose-300/80 leading-relaxed">
+            {error?.message || 'An unexpected error occurred while loading this page.'}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             onClick={() => reset()}
-            className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 text-white font-medium text-sm shadow-md hover:from-rose-700 hover:to-red-700 transition-all cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs sm:text-sm font-bold shadow-md cursor-pointer transition-all"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4" />
             <span>Try Again</span>
           </button>
           <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 text-rose-900 font-medium text-sm transition-all"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-[#250e14] dark:hover:bg-[#34131b] text-rose-900 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 text-xs sm:text-sm font-bold cursor-pointer transition-all"
           >
-            <Home className="w-4 h-4" />
-            <span>Go Home</span>
+            <Home className="w-4 h-4 text-red-600 dark:text-[#FF6B6B]" />
+            <span>Portal Home</span>
           </Link>
         </div>
       </div>

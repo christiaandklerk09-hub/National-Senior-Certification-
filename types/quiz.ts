@@ -1,108 +1,165 @@
-export type SubjectId = 
-  | 'math-lit-p1' 
-  | 'math-lit-p2' 
-  | 'accounting' 
-  | 'business-studies' 
-  | 'economics' 
-  | 'english' 
-  | 'afrikaans';
+export type { ExamAttempt, UserProfile, UserProgressData } from '@/lib/storage';
 
-export type ExamCategory = 'nsc-paper' | 'mcq-test';
+export type SubjectID = 
+  | 'accounting'
+  | 'afrikaans_fal'
+  | 'business_studies'
+  | 'economics'
+  | 'english_hg'
+  | 'maths_literacy';
 
-export interface SubjectMeta {
-  id: SubjectId;
+export interface SubjectConfig {
+  id: SubjectID;
   name: string;
-  paper: string;
+  shortName: string;
+  icon: string;
+  color: string;
+  lightBg: string;
+  darkBg: string;
+  badgeBorder: string;
+  description: string;
   grade: string;
-  themeColor: string;
-  lightRedAccent: string;
-  totalMarks: number;
-  timeMinutes: number;
-  description: string;
-  iconName: string;
+  papersCount: number;
 }
 
-export type QuestionType = 'mcq' | 'numeric' | 'step-by-step' | 'multi-part' | 'qualitative' | 'text';
+export type QuestionType = 
+  | 'multiple-choice' 
+  | 'numeric' 
+  | 'text' 
+  | 'step_by_step' 
+  | 'table' 
+  | 'matching' 
+  | 'word_bank' 
+  | 'essay';
 
-export interface MarkSchemeStep {
+export interface CalculationStep {
   stepNumber: number;
-  description: string;
-  working: string;
-  markCode: 'M' | 'A' | 'CA' | 'MA' | 'S' | 'O'; // Method, Accuracy, Consistent Accuracy, etc.
-  markValue: number;
-}
-
-export interface AnnexureData {
-  id: string;
   title: string;
-  subtitle: string;
-  type: 'tariff-table' | 'tax-brackets' | 'breakeven-chart' | 'financial-statement' | 'floor-plan';
-  dataRows?: Array<{ [key: string]: string | number }>;
-  notes?: string[];
-  imageUrl?: string;
-  chartDetails?: {
-    xLabel: string;
-    yLabel: string;
-    points?: Array<{ x: number; y: number; label?: string }>;
-  };
-}
-
-export interface QualitativeRubric {
-  modelAnswer: string;
-  keyPoints: string[];
-  acceptedKeywords?: string[];
-  sampleGoodResponse?: string;
+  instruction: string;
+  formula?: string;
+  hint?: string;
+  marks: number;
+  rubricCode: string; // e.g. '1MA', '1CA', '1A', '1SF', '2A', '1M', '1R'
+  rubricDescription: string;
+  expectedAnswer: string;
+  acceptableAnswers?: string[];
+  unit?: string;
+  inputPlaceholder?: string;
 }
 
 export interface Question {
-  id: string;
-  numberStr: string; // e.g. "QUESTION 1.1", "QUESTION 2.3.1"
-  topic: string;
-  subtopic: string;
-  marks: number;
-  scenario: string;
-  prompt: string;
-  type: QuestionType;
-  options?: string[]; // For MCQ
-  correctOptionIndex?: number;
-  correctNumericAnswer?: number;
-  numericTolerance?: number; // e.g. +/- 0.5 for rounding
-  unit?: string; // e.g. "Rands", "kL", "litres", "%"
-  annexureId?: string; // Reference to Annexure
-  hint: string;
-  fullSolutionExplanation: string;
-  markingGuide: MarkSchemeStep[];
-  qualitativeRubric?: QualitativeRubric;
+  id: number;
+  subjectId?: SubjectID;
+  paperId?: string;
+  question: string;
+  category: string;
+  type?: QuestionType;
+  marks?: number;
+  steps?: CalculationStep[];
+  rubricDescription?: string;
+  annexureRef?: string;
+  // Optional multiple-choice fields
+  options?: {
+    letter: 'A' | 'B' | 'C' | 'D';
+    text: string;
+  }[];
+  // Answer field (polymorphic: A|B|C|D for MC, string for others)
+  correctAnswer: 'A' | 'B' | 'C' | 'D' | string;
+  explanation: string;
 }
 
-export interface ExamPaper {
+export interface QuizPaper {
   id: string;
-  subjectId: SubjectId;
-  year: number;
-  session: 'November NSC' | 'June Exam' | 'Preparatory Trial';
+  subjectId?: SubjectID;
   title: string;
-  subtitle?: string;
-  category?: ExamCategory;
+  subtitle: string;
+  code: string;
+  chapterNumber?: number;
+  paperNumber?: number;
   totalMarks: number;
-  timeLimitMinutes: number;
-  instructions: string[];
-  annexures: AnnexureData[];
+  passMark: number;
+  timeLimitMinutes?: number;
+  description: string;
   questions: Question[];
 }
 
-export interface UserExamState {
-  currentQuestionIndex: number;
-  selectedAnswers: Record<string, number | string>; // questionId -> answer
-  flaggedQuestionIds: string[];
-  timeRemainingSeconds: number;
-  isCompleted: boolean;
-  isStudyMode: boolean; // false = strict timed exam, true = study with immediate solutions
-  showSolutionForQuestion: Record<string, boolean>;
-  scratchpadNotes: string;
-  scoreTally?: {
-    totalMarksAchieved: number;
-    totalPossibleMarks: number;
-    percentage: number;
-    levelDescriptor: string; // e.g., "Level 7: Outstanding (80-100%)"
-  };
-}
+export const SUBJECTS: SubjectConfig[] = [
+  {
+    id: 'economics',
+    name: 'Economics',
+    shortName: 'Economics',
+    icon: 'TrendingUp',
+    color: '#FB7185', // Soft coral red
+    lightBg: 'bg-rose-50/80',
+    darkBg: 'bg-rose-900/30',
+    badgeBorder: 'border-rose-300 dark:border-rose-700/60',
+    description: 'Macroeconomics, circular flow, business cycles, public sector, foreign exchange & economic pursuits.',
+    grade: 'Grade 12',
+    papersCount: 2,
+  },
+  {
+    id: 'business_studies',
+    name: 'Business Studies',
+    shortName: 'Business Studies',
+    icon: 'Briefcase',
+    color: '#F43F5E', // Rose red
+    lightBg: 'bg-rose-50',
+    darkBg: 'bg-rose-950/40',
+    badgeBorder: 'border-rose-200 dark:border-rose-800/60',
+    description: 'Macro & market environments, corporate strategies, business ventures, ethics, and team performance.',
+    grade: 'Grade 12',
+    papersCount: 2,
+  },
+  {
+    id: 'accounting',
+    name: 'Accounting',
+    shortName: 'Accounting',
+    icon: 'Calculator',
+    color: '#EF4444', // Light red / coral red representative of Accounting
+    lightBg: 'bg-red-50',
+    darkBg: 'bg-red-950/40',
+    badgeBorder: 'border-red-200 dark:border-red-800/60',
+    description: 'Financial reporting, reconciliation, inventory valuation, cost accounting and corporate governance.',
+    grade: 'Grade 12',
+    papersCount: 3,
+  },
+  {
+    id: 'maths_literacy',
+    name: 'Mathematical Literacy',
+    shortName: 'MLIT',
+    icon: 'Sigma',
+    color: '#E11D48', // Crimson light red
+    lightBg: 'bg-rose-100/60',
+    darkBg: 'bg-rose-950/50',
+    badgeBorder: 'border-rose-200 dark:border-rose-800/60',
+    description: 'Financial mathematics, taxation, exchange rates, measurement, maps, plans and data handling.',
+    grade: 'Grade 12',
+    papersCount: 2,
+  },
+  {
+    id: 'english_hg',
+    name: 'English Home Language',
+    shortName: 'ENG-HL',
+    icon: 'BookOpen',
+    color: '#FDA4AF', // Warm rose
+    lightBg: 'bg-rose-50',
+    darkBg: 'bg-rose-950/30',
+    badgeBorder: 'border-rose-200 dark:border-rose-800/40',
+    description: 'Critical comprehension, summary writing, cartoon analysis, advertising techniques and editing skills.',
+    grade: 'Grade 12',
+    papersCount: 2,
+  },
+  {
+    id: 'afrikaans_fal',
+    name: 'Afrikaans Eerste Addisionele Taal',
+    shortName: 'AFR-FAL',
+    icon: 'Languages',
+    color: '#EF4444', // Light red representative of the topic
+    lightBg: 'bg-red-50/90',
+    darkBg: 'bg-red-950/40',
+    badgeBorder: 'border-red-200 dark:border-red-800/50',
+    description: 'Leesbegrip, opsomming, taalstrukture en -konvensies, woordsoorte en kommunikatiewe taal.',
+    grade: 'Graad 12',
+    papersCount: 3,
+  }
+];

@@ -1,6 +1,8 @@
 {
-  "name": "Apex Papers DBE Exam Practice",
-  "description": "Comprehensive South African DBE Grade 12 National Senior Certificate examination practice platform with interactive annexures, step-by-step mathematical working, and authentic marking guidelines in signature light red theme.",
+  "name": "Apex Papers",
+  "description": "Grade 12 full curriculum and past paper practice engine",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

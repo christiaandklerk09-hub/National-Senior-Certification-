@@ -1,394 +1,795 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
-  CheckCircle2, 
-  XCircle, 
-  HelpCircle, 
   Bookmark, 
-  Sparkles, 
-  ArrowRight, 
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  FileCheck2,
-  Lightbulb,
-  ExternalLink
+  ChevronLeft, 
+  ChevronRight, 
+  Sparkles,
+  Lock,
+  Languages,
+  Edit3,
+  FastForward,
+  Layers,
+  CheckCircle2,
+  Check,
+  ShieldCheck,
+  Calculator,
+  BarChart3,
+  TrendingUp,
+  Briefcase,
+  BookOpen,
+  FileText
 } from 'lucide-react';
-import { Question } from '@/types/quiz';
+import { MathRenderer } from './MathRenderer';
+import { AnnexureModal } from './AnnexureModal';
+import { Question } from '@/lib/quiz-data';
+import { TranslateControl } from './TranslateControl';
+import { TranslationResult, SUPPORTED_LANGUAGES, SupportedLanguage, fetchQuestionTranslation } from '@/lib/translate';
+import { AdminEditQuestionModal } from './AdminEditQuestionModal';
+import { getSmartQuestionBlocks, findBlockForQuestionIndex } from '@/lib/pagination';
+import { useAppTheme } from '@/lib/theme';
+import { TutorFeedback } from './TutorFeedback';
+import { QuestionVisualAsset } from './QuestionVisualAsset';
+import { StepByStepWorkStudio } from './StepByStepWorkStudio';
+import { AccountingSpecialAnswerBook } from './AccountingSpecialAnswerBook';
+import { BusinessStudiesAnswerBook } from './BusinessStudiesAnswerBook';
+import { EconomicsAnswerStudio } from './EconomicsAnswerStudio';
+import { EconomicsAnnexureViewer } from './EconomicsAnnexureViewer';
+import { EnglishAnswerStudio } from './EnglishAnswerStudio';
+import { AfrikaansAnswerStudio } from './AfrikaansAnswerStudio';
+import { MathAnnexureViewer } from './MathAnnexureViewer';
 
 interface QuestionCardProps {
   question: Question;
-  questionIndex: number;
+  currentIndex: number;
   totalQuestions: number;
-  userAnswer?: string | number;
-  onAnswerChange: (questionId: string, answer: string | number) => void;
+  allQuestions?: Question[];
+  paperId?: string;
+  selectedAnswer?: string;
   isFlagged: boolean;
-  onToggleFlag: (questionId: string) => void;
-  isStudyMode: boolean;
-  showSolution: boolean;
-  onToggleSolution: (questionId: string) => void;
-  onNextQuestion: () => void;
-  onPrevQuestion: () => void;
-  onJumpToAnnexure?: (annexureId: string) => void;
+  isAdmin?: boolean;
+  activeSection?: number;
+  completedSections?: number[];
+  onCompleteSection?: (sectionId: number, score: number, total: number, nextStartIndex?: number) => void;
+  onSelectOption: (answer: "A" | "B" | "C" | "D") => void;
+  onToggleFlag: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onSubmitQuiz: () => void;
+  onAdminSkipToEnd?: () => void;
+  onQuestionUpdated?: (updated: Question) => void;
+  onQuestionDeleted?: (questionId: number) => void;
+  onJumpToQuestion?: (index: number) => void;
+  canSubmit: boolean;
+  answeredCount: number;
+  requiredSubmitCount: number;
+  canSkip?: boolean;
 }
 
-export function QuestionCard({
+export const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
-  questionIndex,
+  currentIndex,
   totalQuestions,
-  userAnswer,
-  onAnswerChange,
+  allQuestions = [],
+  paperId = 'ch9_emergency_care_1',
+  selectedAnswer,
   isFlagged,
+  isAdmin = false,
+  canSkip = false,
+  activeSection = 1,
+  completedSections = [],
+  onCompleteSection,
+  onSelectOption,
   onToggleFlag,
-  isStudyMode,
-  showSolution,
-  onToggleSolution,
-  onNextQuestion,
-  onPrevQuestion,
-  onJumpToAnnexure,
-}: QuestionCardProps) {
-  const [numericInputValue, setNumericInputValue] = useState<string>(
-    userAnswer !== undefined ? String(userAnswer) : ''
+  onPrev,
+  onNext,
+  onSubmitQuiz,
+  onAdminSkipToEnd,
+  onQuestionUpdated,
+  onQuestionDeleted,
+  onJumpToQuestion,
+  canSubmit,
+  answeredCount,
+  requiredSubmitCount,
+}) => {
+  const isFirst = currentIndex === 0;
+  const isLast = currentIndex === totalQuestions - 1;
+
+  // AI Tutor slide-out state
+  const [isAiTutorOpen, setIsAiTutorOpen] = useState(false);
+
+  // Check if current answer is incorrect
+  const isAnswerIncorrect = Boolean(
+    selectedAnswer && 
+    String(selectedAnswer).trim().toLowerCase() !== String(question.correctAnswer || '').trim().toLowerCase()
   );
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiTutorHint, setAiTutorHint] = useState<string | null>(null);
 
-  // State is reset cleanly per question when keyed by question.id in parent
-
-  const handleNumericSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const parsed = parseFloat(numericInputValue.replace(/[^0-9.-]/g, ''));
-    if (!isNaN(parsed)) {
-      onAnswerChange(question.id, parsed);
+  useEffect(() => {
+    if (isAnswerIncorrect) {
+      console.log('AI Tutor should be opening. isAnswerIncorrect:', isAnswerIncorrect);
+      setIsAiTutorOpen(true);
+    } else {
+      setIsAiTutorOpen(false);
     }
-  };
+  }, [isAnswerIncorrect, selectedAnswer, question.id]);
 
-  const isNumericCorrect = () => {
-    if (userAnswer === undefined || question.correctNumericAnswer === undefined) return null;
-    const userNum = Number(userAnswer);
-    const target = question.correctNumericAnswer;
-    const tolerance = question.numericTolerance || 0.1;
-    return Math.abs(userNum - target) <= tolerance;
-  };
+  // Admin question edit modal state (Requirement 2)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showAnnexureModal, setShowAnnexureModal] = useState(false);
 
-  const isMcqCorrect = () => {
-    if (userAnswer === undefined || question.correctOptionIndex === undefined) return null;
-    return Number(userAnswer) === question.correctOptionIndex;
-  };
+  // Smart Pagination Blocks (Requirement 7)
+  const blocks = React.useMemo(() => {
+    return allQuestions.length > 0 
+      ? getSmartQuestionBlocks(allQuestions) 
+      : [];
+  }, [allQuestions]);
 
-  const isCorrect = question.type === 'mcq' ? isMcqCorrect() : isNumericCorrect();
+  const activeBlock = React.useMemo(() => {
+    return findBlockForQuestionIndex(blocks, currentIndex);
+  }, [blocks, currentIndex]);
 
-  // Request AI tutor hint
-  const handleAskAiTutor = async () => {
-    setIsAiLoading(true);
+  const currentSectionId = activeBlock?.blockNumber || 1;
+  const isSectionLocked = completedSections.includes(currentSectionId);
+
+
+  // Track user-chosen language across the quiz session (initialized deterministically to prevent hydration mismatch)
+  const [chosenLanguage, setChosenLanguage] = useState<SupportedLanguage | null>(null);
+
+  useEffect(() => {
     try {
-      const res = await fetch('/api/tutor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionPrompt: question.prompt,
-          scenario: question.scenario,
-          userWorking: numericInputValue,
-          topic: question.topic,
-        }),
-      });
-      const data = await res.json();
-      setAiTutorHint(data.text);
-    } catch {
-      setAiTutorHint('Remember to verify the unit of measurement and apply the official annexure formula.');
-    } finally {
-      setIsAiLoading(false);
+      const savedCode = localStorage.getItem('sho_preferred_lang_code');
+      if (savedCode) {
+        const found = SUPPORTED_LANGUAGES.find((l) => l.code === savedCode) || null;
+        if (found) {
+          const timer = setTimeout(() => setChosenLanguage(found), 0);
+          return () => clearTimeout(timer);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Track toggle state: true = showing translated language, false = showing English
+  const [isShowingTranslated, setIsShowingTranslated] = useState<boolean>(true);
+
+  // Track translations per question so navigation retains translated versions
+  const [translations, setTranslations] = useState<Record<number, TranslationResult>>({});
+
+  const activeTranslation = translations[question.id] || null;
+  const isDisplayingTranslated = isShowingTranslated && !!activeTranslation;
+
+  const currentQId = question.id;
+  const hasCurrentTranslation = !!translations[currentQId];
+  const chosenLangCode = chosenLanguage?.code;
+  const chosenLangName = chosenLanguage?.name;
+
+  // Auto-fetch translation for current question if user has selected a language and has toggle on
+  useEffect(() => {
+    if (chosenLangName && isShowingTranslated && !hasCurrentTranslation) {
+      let isCancelled = false;
+      fetchQuestionTranslation(
+        currentQId,
+        question.question,
+        question.options || [],
+        chosenLangName,
+        question.explanation
+      )
+        .then((res) => {
+          if (!isCancelled && res) {
+            setTranslations((prev) => ({ ...prev, [currentQId]: res }));
+          }
+        })
+        .catch((err) => {
+          console.warn('Auto translation prefetch warning:', err);
+        });
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [currentQId, question.question, question.options, question.explanation, chosenLangCode, chosenLangName, isShowingTranslated, hasCurrentTranslation]);
+
+  const handleTranslationChange = (result: TranslationResult | null) => {
+    setTranslations((prev) => {
+      const updated = { ...prev };
+      if (result) {
+        updated[question.id] = result;
+      } else {
+        delete updated[question.id];
+      }
+      return updated;
+    });
+  };
+
+  const handleSelectLanguage = (lang: SupportedLanguage | null) => {
+    setChosenLanguage(lang);
+    if (lang) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sho_preferred_lang_code', lang.code);
+      }
+      setIsShowingTranslated(true);
+    } else {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sho_preferred_lang_code');
+      }
+      setIsShowingTranslated(false);
     }
   };
+
+  const { isDark } = useAppTheme();
+
+  const isLightRedTopic = true; // All academic topics feature signature light red accents
 
   return (
-    <div className="bg-white rounded-2xl border border-rose-200/90 shadow-xs overflow-hidden flex flex-col transition-all">
-      {/* Question Header Bar with Signature Light Red Highlights */}
-      <div className="bg-gradient-to-r from-rose-50/70 via-white to-rose-50/40 p-4 sm:p-5 border-b border-rose-100 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center space-x-2.5">
-          <span className="font-extrabold text-sm sm:text-base text-rose-800 bg-rose-100/80 px-2.5 py-1 rounded-lg border border-rose-200">
-            {question.numberStr}
-          </span>
-          <span className="text-xs text-gray-500 font-medium">
-            Question {questionIndex + 1} of {totalQuestions}
-          </span>
-        </div>
+    <div className="w-full max-w-3xl mx-auto scroll-mt-20">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={question.id}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className={`rounded-2xl sm:rounded-3xl border shadow-xl p-4 sm:p-7 sm:p-8 relative overflow-hidden question-card-container transition-colors ${
+            isDark
+              ? 'bg-gradient-to-b from-[#18080c] via-[#120508] to-[#0c0305] border-rose-900/60 shadow-[0_8px_32px_rgba(244,63,94,0.12)] text-white'
+              : 'bg-gradient-to-b from-white via-rose-50/25 to-red-50/20 border-rose-200/90 text-slate-900 shadow-[0_8px_30px_rgba(244,63,94,0.08)] sunlit-card'
+          }`}
+          style={{ boxSizing: 'border-box' }}
+        >
+          {/* Top Topic Accent Bar: Radiant Light Red Gradient */}
+          <div className="absolute top-0 left-0 right-0 h-1 sm:h-1.5 bg-gradient-to-r from-red-500 via-rose-400 to-rose-600" />
 
-        <div className="flex items-center space-x-2">
-          {/* Marks allocation badge in light red */}
-          <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shadow-2xs">
-            [{question.marks} MARKS]
-          </span>
+          {/* Question Meta Badges & Top Controls (Above Question) */}
+          <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5 pt-1">
+            {/* Left: Question Number and Category */}
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
+              {/* Question Number Pill */}
+              <span 
+                id="question-number-badge"
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-black tracking-tight uppercase flex items-center gap-1.5 shadow-xs shrink-0 ${
+                  isDark
+                    ? 'bg-red-950/80 border border-red-500/40 text-[#FF6B6B]'
+                    : 'bg-rose-50 border border-rose-200 text-red-600'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FF4D4D] shadow-[0_0_6px_#FF4D4D]"></span>
+                Q{currentIndex + 1} of {totalQuestions}
+              </span>
 
-          {/* Flag question button */}
-          <button
-            onClick={() => onToggleFlag(question.id)}
-            className={`p-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 transition-colors ${
-              isFlagged 
-                ? 'bg-amber-50 text-amber-700 border-amber-300' 
-                : 'bg-white text-gray-500 border-gray-200 hover:border-rose-200 hover:text-rose-600'
-            }`}
-            title="Flag question to review before submitting"
-          >
-            <Bookmark className={`w-3.5 h-3.5 ${isFlagged ? 'fill-amber-500 text-amber-500' : ''}`} />
-            <span className="hidden sm:inline">{isFlagged ? 'Flagged' : 'Flag'}</span>
-          </button>
-        </div>
-      </div>
+              {/* Category Pill */}
+              <span 
+                id="question-category-badge"
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-semibold truncate max-w-[140px] xs:max-w-[190px] sm:max-w-xs border ${
+                  isDark
+                    ? 'bg-red-950/70 border-red-800/60 text-red-300'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}
+              >
+                {question.category}
+              </span>
 
-      {/* Topic and Subtopic tags */}
-      <div className="px-5 pt-3 flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-semibold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/80">
-          📌 {question.topic}
-        </span>
-        <span className="text-gray-500 font-medium">
-          • {question.subtopic}
-        </span>
-        {question.annexureId && onJumpToAnnexure && (
-          <button
-            onClick={() => onJumpToAnnexure(question.annexureId!)}
-            className="ml-auto text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-1"
-          >
-            <ExternalLink className="w-3 h-3" />
-            <span>Refer to {question.annexureId.toUpperCase()}</span>
-          </button>
-        )}
-      </div>
-
-      {/* Scenario Context Box with light red left border */}
-      <div className="p-5 space-y-4">
-        {question.scenario && (
-          <div className="bg-rose-50/40 p-4 rounded-xl border-l-4 border-rose-500 border-y border-r border-rose-100/80 text-xs sm:text-sm text-gray-800 leading-relaxed">
-            <span className="font-bold text-rose-900 block mb-1">
-              Examination Context / Scenario:
-            </span>
-            <p className="whitespace-pre-line">{question.scenario}</p>
-          </div>
-        )}
-
-        {/* Question Prompt */}
-        <div className="text-sm sm:text-base font-semibold text-gray-900 leading-relaxed">
-          {question.prompt}
-        </div>
-
-        {/* Input Interface based on Question Type */}
-        <div className="pt-2">
-          {question.type === 'mcq' && question.options ? (
-            <div className="space-y-2.5">
-              {question.options.map((option, idx) => {
-                const isSelected = userAnswer !== undefined && Number(userAnswer) === idx;
-                const isCorrectOption = idx === question.correctOptionIndex;
-                const showFeedback = (isStudyMode && userAnswer !== undefined) || showSolution;
-
-                let cardStyle = "border-gray-200 hover:border-rose-300 hover:bg-rose-50/30";
-                if (isSelected) {
-                  cardStyle = "border-rose-500 bg-rose-50/50 text-rose-950 font-medium shadow-2xs";
-                }
-                if (showFeedback) {
-                  if (isCorrectOption) {
-                    cardStyle = "border-emerald-500 bg-emerald-50 text-emerald-950 font-medium";
-                  } else if (isSelected && !isCorrectOption) {
-                    cardStyle = "border-red-500 bg-red-50 text-red-950";
-                  }
-                }
-
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => onAnswerChange(question.id, idx)}
-                    className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm transition-all flex items-start gap-3 ${cardStyle}`}
-                  >
-                    <span className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
-                      isSelected 
-                        ? 'bg-rose-600 border-rose-600 text-white' 
-                        : 'border-gray-300 text-gray-600 bg-white'
-                    }`}>
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    <span className="flex-1 leading-snug">{option}</span>
-                    {showFeedback && isCorrectOption && (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    )}
-                    {showFeedback && isSelected && !isCorrectOption && (
-                      <XCircle className="w-5 h-5 text-red-600 shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
+              {/* Topic Ribbon Indicator */}
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-extrabold uppercase shrink-0 border bg-red-100/90 text-red-700 border-red-300 dark:bg-red-950/90 dark:text-red-300 dark:border-red-800">
+                {question.subjectId === 'accounting' || (paperId && paperId.includes('accounting')) || (question.paperId && question.paperId.includes('accounting')) ? (
+                  <Calculator className="w-3 h-3 text-red-600 dark:text-red-400" />
+                ) : question.subjectId === 'maths_literacy' || (paperId && paperId.includes('mathlit')) ? (
+                  <Calculator className="w-3 h-3 text-red-600 dark:text-red-400" />
+                ) : question.subjectId === 'economics' || (paperId && paperId.includes('econ')) ? (
+                  <TrendingUp className="w-3 h-3 text-red-600 dark:text-red-400" />
+                ) : question.subjectId === 'business_studies' || (paperId && paperId.includes('business')) ? (
+                  <Briefcase className="w-3 h-3 text-red-600 dark:text-red-400" />
+                ) : question.subjectId === 'english_hg' || (paperId && paperId.includes('eng')) ? (
+                  <BookOpen className="w-3 h-3 text-red-600 dark:text-red-400" />
+                ) : (
+                  <Sparkles className="w-3 h-3 text-red-600 dark:text-red-400" />
+                )}
+                <span>{
+                  question.paperId === 'accounting-mcq-test-1'
+                    ? 'Grade 12 · ACCOUNTING MCQ TEST 1'
+                    : question.paperId === 'accounting-mcq-test-2'
+                    ? 'Grade 12 · ACCOUNTING MCQ TEST 2'
+                    : question.paperId === 'maths-literacy-mcq-test-1'
+                    ? 'Grade 12 · MATHEMATICAL LITERACY MCQ TEST 1'
+                    : question.paperId === 'maths-literacy-mcq-test-2'
+                    ? 'Grade 12 · MATHEMATICAL LITERACY MCQ TEST 2'
+                    : question.paperId === 'economics-mcq-test-1'
+                    ? 'Grade 12 · ECONOMICS MCQ TEST 1'
+                    : question.paperId === 'economics-mcq-test-2'
+                    ? 'Grade 12 · ECONOMICS MCQ TEST 2'
+                    : question.paperId === 'business-studies-mcq-test-1'
+                    ? 'Grade 12 · BUSINESS STUDIES MCQ TEST 1'
+                    : question.paperId === 'business-studies-mcq-test-2'
+                    ? 'Grade 12 · BUSINESS STUDIES MCQ TEST 2'
+                    : question.paperId === 'afrikaans-mcq-test-1'
+                    ? 'Graad 12 · AFRIKAANS MCQ TOETS 1'
+                    : question.paperId === 'afrikaans-mcq-test-2'
+                    ? 'Graad 12 · AFRIKAANS MCQ TOETS 2'
+                    : question.paperId === 'english-mcq-test-1'
+                    ? 'Grade 12 · ENGLISH HL MCQ TEST 1'
+                    : question.paperId === 'english-mcq-test-2'
+                    ? 'Grade 12 · ENGLISH HL MCQ TEST 2'
+                    : question.subjectId === 'economics' || (paperId && paperId.includes('econ')) 
+                    ? 'Grade 12 · ECONOMICS P1' 
+                    : question.subjectId === 'english_hg' || (paperId && paperId.includes('eng'))
+                    ? 'Grade 12 · ENGLISH FAL P1'
+                    : question.subjectId === 'afrikaans_fal' || (paperId && paperId.includes('afr'))
+                    ? 'Graad 12 · AFRIKAANS TAT V1'
+                    : question.subjectId === 'maths_literacy' || (paperId && paperId.includes('mathlit'))
+                    ? 'Grade 12 · MATHEMATICAL LITERACY P1'
+                    : question.subjectId === 'business_studies' || (paperId && paperId.includes('business'))
+                    ? 'Grade 12 · BUSINESS STUDIES P1'
+                    : question.subjectId === 'accounting' || (paperId && paperId.includes('accounting'))
+                    ? 'Grade 12 · ACCOUNTING P1'
+                    : `Grade 12 · ${String((question as any).subjectId || 'Matric Prep').toUpperCase().replace('_', ' ')}`
+                }</span>
+              </span>
             </div>
-          ) : (
-            /* Numeric / Working Answer Input */
-            <form onSubmit={handleNumericSubmit} className="space-y-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={numericInputValue}
-                    onChange={(e) => setNumericInputValue(e.target.value)}
-                    placeholder="Enter your final calculated value..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 num-tabular"
-                  />
-                  {question.unit && (
-                    <span className="absolute right-3 top-2.5 text-xs font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
-                      {question.unit}
-                    </span>
-                  )}
-                </div>
+
+            {/* Top Right Controls: Consistent Toolbar (Math Pad, Admin Edit, Translate, Flag) */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+
+
+              {/* Official DBE Annexures / Addendum Modal Trigger */}
+              {(question.subjectId === 'maths_literacy' || (question.category && question.category.toLowerCase().includes('math')) || (paperId && (paperId.includes('mathlit') || paperId.includes('maths-literacy')))) && (
                 <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 text-white shadow-xs transition-colors shrink-0"
+                  id={`annexure-btn-${currentIndex + 1}`}
+                  onClick={() => setShowAnnexureModal(true)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                    isDark
+                      ? 'bg-[#240c12] border-red-900/80 text-rose-300 hover:bg-[#34111a] hover:border-red-500'
+                      : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300'
+                  }`}
+                  title="View Official DBE NSC Exam Addendum & Annexures"
+                  aria-label="View Annexures"
                 >
-                  Record Answer
+                  <FileText className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                  <span className="hidden xs:inline">Addendum</span>
                 </button>
+              )}
+
+              {/* Admin Inline Q&A Edit Trigger Button */}
+              {isAdmin && (
+                <button
+                  id={`admin-edit-q-btn-${question.id}`}
+                  onClick={() => setIsEditModalOpen(true)}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center text-xs font-bold transition-colors cursor-pointer shadow-xs ${
+                    isDark
+                      ? 'bg-amber-950/80 text-[#FBBF24] border-amber-500/40 hover:bg-amber-900'
+                      : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                  }`}
+                  title="Admin: Edit question prompt, choices, or rationale"
+                  aria-label="Edit question"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-[#FBBF24]" />
+                </button>
+              )}
+
+              {/* Translation Toggle Control */}
+              <TranslateControl
+                question={question}
+                activeTranslation={activeTranslation}
+                onTranslationChange={handleTranslationChange}
+                chosenLanguage={chosenLanguage}
+                onSelectLanguage={handleSelectLanguage}
+                isShowingTranslated={isShowingTranslated}
+                onToggleShowingTranslated={setIsShowingTranslated}
+                size="sm"
+              />
+
+              {/* Flag Question Button */}
+              <button
+                id={`flag-question-btn-${currentIndex + 1}`}
+                onClick={onToggleFlag}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center text-xs font-semibold transition-all cursor-pointer shadow-xs ${
+                  isFlagged
+                    ? isDark
+                      ? 'bg-amber-950/80 text-[#FBBF24] border-amber-500/40'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                    : isDark
+                      ? 'bg-[#16080b] text-rose-300 border-rose-950/60 hover:border-rose-700/60 hover:text-rose-100'
+                      : 'bg-rose-50/60 text-slate-700 border-rose-200/80 hover:border-rose-300 hover:text-slate-900'
+                }`}
+                title={isFlagged ? "Flagged (click to unflag)" : "Flag this question to review later"}
+                aria-label="Flag Question"
+              >
+                <Bookmark
+                  className={`w-3.5 h-3.5 transition-colors ${
+                    isFlagged ? 'fill-[#FBBF24] text-[#FBBF24]' : isDark ? 'text-slate-500' : 'text-slate-400'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Section Lock & UI Guard Notice */}
+          {isSectionLocked && (
+            <div className={`p-3 text-sm font-semibold mb-4 rounded-xl flex items-center gap-2 shadow-xs border ${
+              isDark
+                ? 'bg-amber-950/80 border-amber-500/40 text-[#FBBF24]'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}>
+              <Lock className="w-4 h-4 text-[#FBBF24] shrink-0" />
+              <span>This section has been submitted and locked.</span>
+            </div>
+          )}
+
+          {/* Question Text Area */}
+          <div className={`mb-5 sm:mb-6 p-4 sm:p-5 rounded-2xl border transition-all ${
+            isDark
+              ? 'bg-[#1a070c]/80 border-rose-950/80 shadow-inner'
+              : 'bg-gradient-to-r from-red-50/70 via-rose-50/40 to-white/95 border-red-200/80 shadow-xs'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-rose-400">
+                VRAAG / QUESTION PROMPT
+              </span>
+            </div>
+            {chosenLanguage && (
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2 rounded-full text-[11px] font-bold ${
+                isDark
+                  ? 'bg-red-950/80 border border-red-500/40 text-[#FF6B6B]'
+                  : 'bg-rose-50 border border-rose-200 text-rose-700'
+              }`}>
+                <Languages className="w-3.5 h-3.5 text-[#FF4D4D] shrink-0" />
+                <span>
+                  {isDisplayingTranslated
+                    ? `Viewing in ${activeTranslation?.targetLanguage || chosenLanguage.name}`
+                    : `Viewing Original (English)`}
+                </span>
+                <span className={`text-[10px] font-normal ml-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {isDisplayingTranslated
+                    ? '· Click EN toggle above to view English'
+                    : `· Click ${chosenLanguage.name} toggle above to view translation`}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-start justify-between gap-3">
+              <h2 
+                id={`question-title-${currentIndex + 1}`}
+                className={`text-lg sm:text-2xl font-bold leading-snug tracking-tight flex-1 ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}
+              >
+                <MathRenderer text={isDisplayingTranslated ? activeTranslation.translatedQuestion : question.question} />
+              </h2>
+            </div>
+          </div>
+
+          {/* On-Screen Interactive Graph / Visual Asset (Only for non-Math subjects; Math Lit uses dedicated MathAnnexureViewer) */}
+          {question.subjectId !== 'maths_literacy' && !paperId?.includes('mathlit') && !paperId?.includes('maths-literacy') && (
+            <QuestionVisualAsset question={question} currentIndex={currentIndex} />
+          )}
+
+          {/* Official South African NSC Special Answer Book Formats for Accounting (non-MCQ) */}
+          {(question.type !== 'multiple-choice') && (question.subjectId === 'accounting' || (question.category && question.category.toLowerCase().includes('accounting')) || (paperId && paperId.includes('accounting'))) && (
+            <AccountingSpecialAnswerBook 
+              question={question} 
+              currentIndex={currentIndex} 
+              onAnswerCorrect={() => onSelectOption(question.correctAnswer as any)}
+            />
+          )}
+
+          {/* Official South African NSC Answer Studio for Business Studies (Only for written/text/essay questions, not MCQs) */}
+          {question.type !== 'multiple-choice' && (question.subjectId === 'business_studies' || (question.category && question.category.toLowerCase().includes('business')) || (paperId && paperId.includes('business'))) && (
+            <BusinessStudiesAnswerBook 
+              question={question} 
+              currentIndex={currentIndex} 
+              onAnswerCorrect={() => onSelectOption(question.correctAnswer as any)}
+            />
+          )}
+
+          {/* Official South African NSC Annexures for Economics (Tables, Extracts, Graphs, Cartoons) */}
+          {(question.subjectId === 'economics' || (question.category && question.category.toLowerCase().includes('economic')) || (paperId && paperId.includes('econ'))) && (
+            <EconomicsAnnexureViewer 
+              question={question} 
+              currentIndex={currentIndex} 
+            />
+          )}
+
+          {/* Official South African NSC Annexures for Mathematical Literacy (Annexure A, B, C) */}
+          {(question.subjectId === 'maths_literacy' || (question.category && question.category.toLowerCase().includes('math')) || (paperId && paperId.includes('mathlit')) || (paperId && paperId.includes('maths-literacy'))) && (
+            <MathAnnexureViewer 
+              question={question} 
+              currentIndex={currentIndex} 
+            />
+          )}
+
+          {/* Official South African NSC Answer Studio for Economics (Only for written/text/essay questions, not MCQs) */}
+          {question.type !== 'multiple-choice' && (question.subjectId === 'economics' || (question.category && question.category.toLowerCase().includes('economic')) || (paperId && paperId.includes('econ'))) && (
+            <EconomicsAnswerStudio 
+              question={question} 
+              currentIndex={currentIndex} 
+              onAnswerCorrect={() => onSelectOption(question.correctAnswer as any)}
+            />
+          )}
+
+          {/* Official South African NSC Answer Studio for English FAL (Only for written/text/essay questions, not MCQs) */}
+          {question.type !== 'multiple-choice' && (question.subjectId === 'english_hg' || (question.category && (question.category.toLowerCase().includes('text ') || question.category.toLowerCase().includes('english') || question.category.toLowerCase().includes('comprehension') || question.category.toLowerCase().includes('summary') || question.category.toLowerCase().includes('editing') || question.category.toLowerCase().includes('cartoon') || question.category.toLowerCase().includes('advertisement'))) || (paperId && paperId.includes('eng'))) && (
+            <EnglishAnswerStudio 
+              question={question} 
+              currentIndex={currentIndex} 
+              onAnswerCorrect={() => onSelectOption(question.correctAnswer as any)}
+            />
+          )}
+
+          {/* Official South African NSC Answer Studio for Afrikaans TAT (Only for written/text/essay questions, not MCQs) */}
+          {question.type !== 'multiple-choice' && (question.subjectId === 'afrikaans_fal' || (question.category && (question.category.toLowerCase().includes('teks ') || question.category.toLowerCase().includes('afrikaans') || question.category.toLowerCase().includes('leesbegrip') || question.category.toLowerCase().includes('opsomming') || question.category.toLowerCase().includes('taalstrukture') || question.category.toLowerCase().includes('strokiesprent') || question.category.toLowerCase().includes('advertensie'))) || (paperId && paperId.includes('afr'))) && (
+            <AfrikaansAnswerStudio 
+              question={question} 
+              currentIndex={currentIndex} 
+              onAnswerCorrect={() => onSelectOption(question.correctAnswer as any)}
+            />
+          )}
+
+          {/* Interactive Step-by-Step Working & Calculation Studio (for Math Lit & general calculations - only non-MCQ) */}
+          {question.type !== 'multiple-choice' && question.subjectId !== 'accounting' && question.subjectId !== 'business_studies' && question.subjectId !== 'economics' && question.subjectId !== 'english_hg' && question.subjectId !== 'afrikaans_fal' && !paperId?.includes('accounting') && !paperId?.includes('business') && !paperId?.includes('econ') && !paperId?.includes('eng') && !paperId?.includes('afr') && (
+            <div className={`mb-6 sm:mb-8 ${isSectionLocked ? 'opacity-75 pointer-events-none select-none' : ''}`}>
+              <StepByStepWorkStudio 
+                question={question}
+                currentIndex={currentIndex}
+                savedAnswer={selectedAnswer}
+                onStepComplete={(stepIdx, userVal, isCorrect) => {
+                  onSelectOption(userVal as "A" | "B" | "C" | "D");
+                  if (!isCorrect) {
+                    setIsAiTutorOpen(true);
+                  }
+                }}
+                onAllStepsComplete={(finalVal) => {
+                  onSelectOption(finalVal as "A" | "B" | "C" | "D");
+                }}
+              />
+            </div>
+          )}
+
+          {/* Multiple Choice Options Grid: ONLY when question type is explicitly multiple-choice */}
+          {question.type === 'multiple-choice' && question.options && question.options.length > 0 && (
+            <div className={`mb-6 sm:mb-8 ${isSectionLocked ? 'opacity-75 pointer-events-none select-none' : ''}`} role="radiogroup" aria-label="Answer options">
+              <div className="flex items-center justify-between gap-2 px-1 mb-2.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-rose-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-red-500" />
+                  <span>KIES DIE REGTE OPSIE / SELECT MULTIPLE CHOICE (A – D)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 hidden sm:inline">
+                  Click an option or press keys 1–4 / A–D
+                </span>
               </div>
 
-              {/* Instant feedback badge in study mode */}
-              {isStudyMode && userAnswer !== undefined && isNumericCorrect() !== null && (
-                <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-medium ${
-                  isNumericCorrect() 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                    : 'bg-rose-50 border-rose-200 text-rose-900'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {isNumericCorrect() ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    )}
-                    <span>
-                      {isNumericCorrect() 
-                        ? `Correct! Answer: ${question.correctNumericAnswer} ${question.unit || ''}`
-                        : `Your answer (${userAnswer}) differs from target. Check your steps below.`}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </form>
+              <div className="grid grid-cols-1 gap-2.5">
+                {question.options.map((option) => {
+                  const isSelected = String(selectedAnswer).toUpperCase() === String(option.letter).toUpperCase();
+                  const translatedOptionText = isDisplayingTranslated
+                    ? activeTranslation?.translatedOptions?.find((o) => o.letter === option.letter)?.text || option.text
+                    : option.text;
+
+                  return (
+                    <button
+                      key={option.letter}
+                      id={`option-${option.letter}-${currentIndex + 1}`}
+                      type="button"
+                      disabled={isSectionLocked}
+                      onClick={() => onSelectOption(option.letter as 'A' | 'B' | 'C' | 'D')}
+                      className={`w-full p-3.5 sm:p-4 rounded-2xl border text-left flex items-start gap-3.5 transition-all duration-200 cursor-pointer text-xs sm:text-sm font-medium group ${
+                        isSelected
+                          ? isDark
+                            ? 'bg-gradient-to-r from-red-950/90 via-[#2c0b13] to-[#1c060b] border-red-500 shadow-md shadow-red-950/60 text-white ring-2 ring-red-500/50 scale-[1.01]'
+                            : 'bg-gradient-to-r from-red-50 via-rose-50 to-red-100/60 border-red-500 text-slate-900 shadow-md shadow-rose-900/10 ring-2 ring-red-400/50 scale-[1.01]'
+                          : isDark
+                          ? 'bg-[#150608]/80 hover:bg-[#200a0e] border-rose-950/70 hover:border-red-600/70 text-slate-200 hover:shadow-xs'
+                          : 'bg-white hover:bg-red-50/50 border-rose-200/90 hover:border-red-300 text-slate-800 shadow-xs hover:shadow-sm'
+                      } ${isSectionLocked ? 'cursor-not-allowed opacity-75' : ''}`}
+                    >
+                      {/* Letter Badge */}
+                      <span
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 transition-transform duration-200 ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-red-600 to-rose-500 text-white shadow-sm scale-105'
+                            : isDark
+                            ? 'bg-[#250d12] border border-rose-900/60 text-rose-300 group-hover:border-red-500/60 group-hover:text-red-300'
+                            : 'bg-rose-100 border border-rose-200 text-rose-800 group-hover:bg-red-100 group-hover:border-red-300 group-hover:text-red-700'
+                        }`}
+                      >
+                        {option.letter}
+                      </span>
+
+                      {/* Text */}
+                      <div className="flex-1 pt-0.5 leading-relaxed font-sans">
+                        <MathRenderer text={translatedOptionText} />
+                      </div>
+
+                      {/* Selection Checkmark */}
+                      <div className="shrink-0 pt-0.5">
+                        <div
+                          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'border-red-500 bg-red-600 text-white shadow-xs'
+                              : isDark
+                              ? 'border-rose-900/80 bg-transparent group-hover:border-rose-600'
+                              : 'border-slate-300 bg-transparent group-hover:border-red-300'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
-        </div>
 
-        {/* AI Tutor Hint & Examiner Guidance Section */}
-        <div className="pt-2 border-t border-rose-100 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
+          {/* AI Tutor Slide-out Guidance */}
+          {isAiTutorOpen && isAnswerIncorrect && (
+            <TutorFeedback
+              question={question.question}
+              userAnswer={String(selectedAnswer)}
+              correctAnswer={String(question.correctAnswer)}
+              explanation={question.explanation || 'Refer to official DBE marking guidelines.'}
+              onClose={() => setIsAiTutorOpen(false)}
+            />
+          )}
+          
+          {question.question.toLowerCase().includes('annexure') && (
             <button
-              onClick={handleAskAiTutor}
-              disabled={isAiLoading}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
+              onClick={() => setShowAnnexureModal(true)}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 rounded-xl font-bold text-xs hover:bg-rose-200 dark:hover:bg-rose-900 transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5 text-rose-500" />
-              <span>{isAiLoading ? 'Analyzing...' : 'Ask AI Examiner Hint'}</span>
+              <FileText className="w-4 h-4" />
+              View Annexure
+            </button>
+          )}
+
+          <AnnexureModal
+            isOpen={showAnnexureModal}
+            onClose={() => setShowAnnexureModal(false)}
+            initialAnnexureId="annexure_a"
+          />
+
+          {/* Bottom Card Navigation & Controls */}
+          <div className={`pt-4 border-t flex items-center justify-between gap-2 sm:gap-3 flex-wrap ${
+            isDark ? 'border-slate-800/80' : 'border-slate-200'
+          }`}>
+            {/* Previous Button */}
+            <button
+              id="quiz-prev-btn"
+              onClick={onPrev}
+              disabled={isFirst}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
+                isFirst
+                  ? isDark
+                    ? 'bg-slate-900/40 text-slate-600 border-slate-800/50 cursor-not-allowed'
+                    : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  : isDark
+                    ? 'bg-[#180a0e] text-rose-300 border-rose-900/50 hover:bg-[#250e14] hover:text-rose-200 cursor-pointer shadow-xs'
+                    : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100 hover:text-rose-900 cursor-pointer shadow-xs'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
             </button>
 
-            {/* In study mode or when submitted, toggle solution memorandum */}
-            <button
-              onClick={() => onToggleSolution(question.id)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium text-gray-700 hover:text-rose-700 hover:bg-rose-50 transition-colors flex items-center gap-1"
-            >
-              <FileCheck2 className="w-3.5 h-3.5 text-rose-500" />
-              <span>{showSolution ? 'Hide DBE Marking Scheme' : 'View DBE Marking Scheme'}</span>
-              {showSolution ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-          </div>
+            {/* Middle Controls: Section Lock & Admin Skip */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Submit & Lock Section Button at end of block */}
+              {activeBlock && currentIndex === activeBlock.endIndex && !isSectionLocked && onCompleteSection && !isLast && (
+                <button
+                  id={`submit-lock-section-btn-${currentSectionId}`}
+                  onClick={() => {
+                    const blockQuestions = activeBlock.questions;
+                    onCompleteSection(currentSectionId, 0, blockQuestions.length, activeBlock.endIndex + 1);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white border border-amber-700 shadow-sm transition-all cursor-pointer"
+                  title={`Submit Section ${currentSectionId} and lock answers`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Lock Section {currentSectionId}</span>
+                </button>
+              )}
 
-          <span className="text-[11px] text-gray-500">
-            {question.hint && `Hint available in Study Mode`}
-          </span>
-        </div>
-
-        {/* AI Tutor Hint Display */}
-        {aiTutorHint && (
-          <div className="p-3.5 bg-gradient-to-r from-rose-50 to-orange-50 rounded-xl border border-rose-200 text-xs text-rose-950 space-y-1 animate-in fade-in">
-            <div className="font-bold flex items-center gap-1.5 text-rose-800">
-              <Lightbulb className="w-4 h-4 text-amber-500" />
-              <span>Examiner Feedback & Guidance:</span>
+              {/* Admin Skip to End Shortcut */}
+              {canSkip && onAdminSkipToEnd && (
+                <button
+                  id="admin-skip-to-end-btn"
+                  onClick={onAdminSkipToEnd}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 shadow-sm transition-all cursor-pointer"
+                  title="Admin Shortcut: Instantly complete remaining questions and view score breakdown"
+                >
+                  <FastForward className="w-3.5 h-3.5" />
+                  <span>Skip to End</span>
+                </button>
+              )}
             </div>
-            <p className="whitespace-pre-line text-gray-700 pl-5">{aiTutorHint}</p>
-          </div>
-        )}
 
-        {/* DBE Official Marking Guideline Breakdown (Memorandum) */}
-        {showSolution && (
-          <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-rose-200 space-y-3 animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-900 uppercase tracking-wider flex items-center gap-1.5">
-                <FileCheck2 className="w-4 h-4 text-rose-600" />
-                Official DBE Memorandum & Mark Allocation:
+            {/* Next / Submit Button with Light Red Lifeguard Glow */}
+            {isLast ? (
+              canSubmit ? (
+                <button
+                  id="quiz-submit-btn"
+                  onClick={onSubmitQuiz}
+                  className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-red-600 to-rose-500 text-white hover:from-red-700 hover:to-rose-600 shadow-[0_4px_20px_rgba(225,29,72,0.35)] active:scale-98 transition-all cursor-pointer"
+                >
+                  <span>FINISH QUIZ</span>
+                  <Sparkles className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  id="quiz-submit-btn-locked"
+                  disabled
+                  className={`inline-flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold border cursor-not-allowed ${
+                    isDark
+                      ? 'bg-slate-900 text-slate-500 border-slate-800'
+                      : 'bg-slate-100 text-slate-400 border-slate-200'
+                  }`}
+                  title={`Answer at least ${requiredSubmitCount} questions to submit (${answeredCount}/${requiredSubmitCount} answered)`}
+                >
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <span>SUBMIT ({answeredCount}/{requiredSubmitCount})</span>
+                </button>
+              )
+            ) : (
+              <button
+                id="quiz-next-btn"
+                onClick={onNext}
+                className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-red-600 to-rose-500 text-white hover:from-red-700 hover:to-rose-600 shadow-[0_4px_18px_rgba(225,29,72,0.35)] active:scale-98 transition-all cursor-pointer"
+              >
+                <span>NEXT</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Locked Notice on Last Question if not enough answered */}
+          {isLast && !canSubmit && (
+            <div className={`mt-3.5 p-3 rounded-xl border text-xs flex items-center gap-2 ${
+              isDark
+                ? 'bg-amber-950/80 border-amber-500/40 text-[#FBBF24]'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}>
+              <Lock className="w-4 h-4 text-[#FBBF24] shrink-0" />
+              <span>
+                You must answer at least <strong>{requiredSubmitCount} questions</strong> before submitting ({requiredSubmitCount - answeredCount} more required).
               </span>
-              <span className="text-[11px] font-semibold text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
-                Total: {question.marks} Marks
-              </span>
             </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
-            {/* Explanation text */}
-            <div className="bg-white p-3 rounded-lg border border-rose-100 text-xs font-mono text-gray-800 whitespace-pre-line leading-relaxed">
-              {question.fullSolutionExplanation}
-            </div>
+      {/* Admin Inline Q&A Editing Modal (Requirement 2) */}
+      {isAdmin && (
+        <AdminEditQuestionModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          question={question}
+          paperId={paperId}
+          onSave={(updated) => {
+            if (onQuestionUpdated) {
+              onQuestionUpdated(updated);
+            }
+          }}
+          onDelete={(deletedId) => {
+            if (onQuestionDeleted) {
+              onQuestionDeleted(deletedId);
+            }
+          }}
+        />
+      )}
 
-            {/* Marking Table with Authentic Red Marks */}
-            <div className="overflow-x-auto rounded-lg border border-rose-200">
-              <table className="w-full text-left text-xs bg-white">
-                <thead className="bg-rose-100/60 text-rose-900 font-bold border-b border-rose-200">
-                  <tr>
-                    <th className="px-3 py-2">Step</th>
-                    <th className="px-3 py-2">DBE Working & Explanation</th>
-                    <th className="px-3 py-2">Mark Code</th>
-                    <th className="px-3 py-2 text-right">Marks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-rose-100">
-                  {question.markingGuide.map((step, sIdx) => (
-                    <tr key={sIdx} className="hover:bg-rose-50/30">
-                      <td className="px-3 py-2 font-bold text-gray-600">
-                        {step.stepNumber}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        <span className="font-semibold block">{step.description}</span>
-                        <code className="text-rose-700 font-mono text-[11px]">{step.working}</code>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="font-bold text-white bg-rose-600 px-1.5 py-0.5 rounded text-[10px]" title={
-                          step.markCode === 'M' ? 'Method Mark' :
-                          step.markCode === 'A' ? 'Accuracy Mark' :
-                          step.markCode === 'CA' ? 'Consistent Accuracy' :
-                          step.markCode === 'MA' ? 'Method with Accuracy' : 'Step mark'
-                        }>
-                          {step.markCode}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">
-                        {step.markValue}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-        <button
-          onClick={onPrevQuestion}
-          disabled={questionIndex === 0}
-          className="px-3 py-2 rounded-xl text-xs font-medium text-gray-700 border border-gray-200 bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 disabled:opacity-40 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Previous Question</span>
-        </button>
-
-        <button
-          onClick={onNextQuestion}
-          disabled={questionIndex === totalQuestions - 1}
-          className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs disabled:opacity-40 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
-        >
-          <span>Next Question</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {/* Official Exam Addendum Modal */}
+      <AnnexureModal
+        isOpen={showAnnexureModal}
+        onClose={() => setShowAnnexureModal(false)}
+        initialAnnexureId={
+          question.id >= 722 && question.id <= 726 ? 'annexure_a' :
+          question.id >= 734 && question.id <= 736 ? 'annexure_b' :
+          question.id >= 744 && question.id <= 747 ? 'annexure_c' :
+          question.id >= 701 && question.id <= 705 ? 'table_1' :
+          question.id >= 706 && question.id <= 710 ? 'graph_1_2' :
+          question.id >= 716 && question.id <= 721 ? 'table_2' :
+          question.id >= 748 && question.id <= 751 ? 'table_7_8' : 'annexure_a'
+        }
+      />
     </div>
   );
-}
+};

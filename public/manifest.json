@@ -1,21 +1,16 @@
 {
   "name": "Apex Papers",
   "short_name": "ApexPapers",
-  "description": "Grade 12 examination papers and past paper practice engine",
+  "description": "High-fidelity past paper study engine",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fff5f5",
-  "theme_color": "#ef4444",
+  "background_color": "#0f0709",
+  "theme_color": "#e11d48",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "type": "image/png",
       "sizes": "192x192"
-    },
-    {
-      "src": "/pwa-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
     }
   ]
 }

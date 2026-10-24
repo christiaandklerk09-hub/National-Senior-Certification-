@@ -1,19 +1,24 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import { fixupConfigRules } from "@eslint/compat";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-const eslintConfig = [
+export default [
   {
-    ignores: [".next/**", "node_modules/**", "public/**", "scripts/**"],
+    ignores: [".next/**", "node_modules/**", "*.js", "scripts/**"],
   },
-  ...compat.extends("next/core-web-vitals"),
+  ...fixupConfigRules(compat.extends("next/core-web-vitals")),
+  {
+    rules: {
+      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/rules-of-hooks": "error",
+    },
+  },
 ];
-
-export default eslintConfig;
