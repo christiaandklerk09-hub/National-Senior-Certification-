@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@layer base {
+  ::selection {
+    background-color: #fecdd3; /* Rose 200 light red selection */
+    color: #881337; /* Rose 900 text */
+  }
+
+  /* Smooth custom light red scrollbars */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #fff1f2;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #fda4af;
+    border-radius: 4px;
+    border: 2px solid #fff1f2;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #f43f5e;
+  }
+}
+
+/* Authentic South African School & Exam Paper Feint-and-Margin Ruling */
+.bg-exam-grid {
+  background-color: #fffafb;
+  background-image: 
+    linear-gradient(to right, rgba(244, 63, 94, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(244, 63, 94, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Light Red Notebook Paper with Feint Horizontal Ruling & Red Margin */
+.bg-notebook-feint {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 27px,
+    rgba(251, 113, 133, 0.15) 28px
+  );
+  line-height: 28px;
+}
+
+/* Authentic South African exercise book red vertical margin line */
+.notebook-red-margin {
+  border-left: 2px solid #fb7185;
+}
+
+/* Signature Light Red Glowing Elements */
+.badge-light-red {
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+}
+
+.badge-light-red-subtle {
+  background-color: rgba(255, 241, 242, 0.7);
+  border: 1px solid rgba(254, 205, 211, 0.8);
+  color: #9f1239;
+}
+
+.card-light-red-glow {
+  box-shadow: 0 4px 20px -2px rgba(244, 63, 94, 0.09), 0 2px 6px -1px rgba(244, 63, 94, 0.05);
+}
+
+.card-light-red-hover:hover {
+  border-color: #fda4af;
+  box-shadow: 0 10px 25px -3px rgba(244, 63, 94, 0.12), 0 4px 10px -2px rgba(244, 63, 94, 0.06);
+}
+
+/* Authentic Red Examiner Stamp Badge */
+.stamp-red-mark {
+  background: linear-gradient(135deg, #e11d48, #be123c);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  border: 1px solid #9f1239;
+}
+
+.num-tabular {
+  font-variant-numeric: tabular-nums;
+}
